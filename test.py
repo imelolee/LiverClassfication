@@ -6,7 +6,7 @@ import torch
 import SimpleITK as sitk
 from torchvision import transforms
 import matplotlib.pyplot as plt
-
+from utils import Logger
 from net.resnet import resnet34
 
 
@@ -30,6 +30,9 @@ def main():
 
     json_file = open(json_path, "r")
     class_indict = json.load(json_file)
+    
+    logfile = './log_test.txt'
+    sys.stdout = Logger(logfile)
     
     # create model
     model = resnet34(num_classes=6).to(device)
@@ -77,7 +80,7 @@ def main():
 
         print_res = "predict_class: {}   prob: {:.3}    truth_class: {}".format(class_indict[str(predict_cla)],
                                                     predict[predict_cla].numpy(), truth_class)
-        # print(print_res)
+        print(print_res)
         if class_indict[str(predict_cla)] == truth_class:
             right_num += 1
     # for i in range(len(predict)):

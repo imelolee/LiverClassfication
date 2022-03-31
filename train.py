@@ -7,17 +7,16 @@ from torch.utils.data import DataLoader
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 from dataset import LiverDataset
-from utils import read_split_data, get_params_groups, create_lr_scheduler
+from utils import read_split_data, get_params_groups, create_lr_scheduler, Logger
 from net.unet import Unet
 from net.resnet import resnet34
-
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, lr_scheduler):
     model.train()
     loss_function = torch.nn.CrossEntropyLoss()
     accu_loss = torch.zeros(1).to(device)  # 累计损失
-    accu_num = torch.zeros(1).to(device)   # 累计预测正确的样本数
+    accu_num = torch.zeros(1).to(device)  # 累计预测正确的样本数
     optimizer.zero_grad()
 
     sample_num = 0
@@ -59,7 +58,7 @@ def evaluate(model, data_loader, device, epoch):
 
     model.eval()
 
-    accu_num = torch.zeros(1).to(device)   # 累计预测正确的样本数
+    accu_num = torch.zeros(1).to(device)  # 累计预测正确的样本数
     accu_loss = torch.zeros(1).to(device)  # 累计损失
 
     sample_num = 0
@@ -90,35 +89,38 @@ def main(args):
 
     if os.path.exists("./weights") is False:
         os.makedirs("./weights")
- 
+
+    logfile = './log_train.txt'
+    sys.stdout = Logger(logfile)
+
     tb_writer = SummaryWriter()
 
-    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(train_dir=args.train_set, val_dir=args.val_set)
-    
+    train_images_path, train_images_label, val_images_path, val_images_label = read_split_data(train_dir=args.train_set,
+                                                                                               val_dir=args.val_set)
+
     train_dataset = LiverDataset(images_path=train_images_path,
-                              images_class=train_images_label,
-                              mode='train')
+                                 images_class=train_images_label,
+                                 mode='train')
 
     val_dataset = LiverDataset(images_path=val_images_path,
-                            images_class=val_images_label,
-                            mode='val')
-    
+                               images_class=val_images_label,
+                               mode='val')
+
     batch_size = args.batch_size
     nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
     print('Using {} dataloader workers every process'.format(nw))
-    
-    
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, 
-                              shuffle=True, pin_memory=True, 
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,
+                              shuffle=True, pin_memory=True,
                               num_workers=nw, collate_fn=train_dataset.collate_fn)
 
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, 
-                            shuffle=False, pin_memory=True, 
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,
+                            shuffle=False, pin_memory=True,
                             num_workers=nw, collate_fn=val_dataset.collate_fn)
 
     # net = Unet(in_ch=1, num_classes=6)
     net = resnet34().to(device)
-    
+
     if args.weights != "":
         assert os.path.exists(args.weights), "weights file: '{}' not exist.".format(args.weights)
         weights_dict = torch.load(args.weights, map_location=device)["model"]
@@ -135,14 +137,14 @@ def main(args):
                 para.requires_grad_(False)
             else:
                 print("training {}".format(name))
-    
+
     pg = get_params_groups(net, weight_decay=args.wd)
     optimizer = optim.AdamW(pg, lr=args.lr, weight_decay=args.wd)
     lr_scheduler = create_lr_scheduler(optimizer, len(train_loader), args.epochs,
                                        warmup=True, warmup_epochs=1)
-    
+
     best_acc = 0.0
-    
+
     for epoch in range(args.epochs):
         # train
         train_loss, train_acc = train_one_epoch(model=net,
