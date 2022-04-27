@@ -1,6 +1,7 @@
 import os
 import sys
 import argparse
+
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
@@ -10,6 +11,8 @@ from dataset import LiverDataset
 from utils import read_split_data, get_params_groups, create_lr_scheduler, Logger
 from net.unet import Unet
 from net.resnet import resnet34
+from net.alexnet import AlexNet
+from net.googlenet import GoogLeNet
 
 
 def train_one_epoch(model, optimizer, data_loader, device, epoch, lr_scheduler):
@@ -90,8 +93,6 @@ def main(args):
     if os.path.exists("./weights") is False:
         os.makedirs("./weights")
 
-    logfile = './log_train.txt'
-    sys.stdout = Logger(logfile)
 
     tb_writer = SummaryWriter()
 
@@ -119,7 +120,10 @@ def main(args):
                             num_workers=nw, collate_fn=val_dataset.collate_fn)
 
     # net = Unet(in_ch=1, num_classes=6)
-    net = resnet34().to(device)
+    # net = resnet34().to(device)
+    # net = AlexNet().to(device)
+    net = GoogLeNet(aux_logits=False, init_weights=True).to(device)
+    
 
     if args.weights != "":
         assert os.path.exists(args.weights), "weights file: '{}' not exist.".format(args.weights)
@@ -168,7 +172,7 @@ def main(args):
         tb_writer.add_scalar(tags[4], optimizer.param_groups[0]["lr"], epoch)
 
         if best_acc < val_acc:
-            torch.save(net.state_dict(), "./weights/best_model.pth".format(epoch))
+            torch.save(net.state_dict(), "./weights/google_best_model.pth".format(epoch))
             best_acc = val_acc
 
     print('Finished Training')
@@ -191,7 +195,7 @@ if __name__ == '__main__':
                         help='initial weights path')
     # 是否冻结head以外所有权重
     parser.add_argument('--freeze-layers', type=bool, default=False)
-    parser.add_argument('--device', default='cuda:0', help='device id (i.e. 0 or 0,1 or cpu)')
+    parser.add_argument('--device', default='cuda:1', help='device id (i.e. 0 or 0,1 or cpu)')
 
     opt = parser.parse_args()
 

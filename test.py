@@ -8,6 +8,9 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 from utils import Logger
 from net.resnet import resnet34
+from net.alexnet import AlexNet
+from net.googlenet import GoogLeNet
+from eval import cal_mAP
 
 
 def main():
@@ -31,14 +34,17 @@ def main():
     json_file = open(json_path, "r")
     class_indict = json.load(json_file)
     
-    logfile = './log_test.txt'
+    logfile = './results/google_log_test.txt'
     sys.stdout = Logger(logfile)
     
     # create model
-    model = resnet34(num_classes=6).to(device)
+    # model = resnet34(num_classes=6).to(device)
+    # model = AlexNet(num_classes=6).to(device)
+    model = GoogLeNet(num_classes=6, aux_logits=False, init_weights=True).to(device)
+
 
     # load model weights
-    weights_path = "weights/best_model.pth"
+    weights_path = "weights/google_best_model.pth"
     assert os.path.exists(weights_path), "file: '{}' dose not exist.".format(weights_path)
     model.load_state_dict(torch.load(weights_path, map_location=device))
     
@@ -51,6 +57,10 @@ def main():
     
     all_num = 0
     right_num = 0
+    target = {'0':[], '1':[],'2':[],'3':[],'4':[],'5':[]}
+    pred = {'0':[], '1':[],'2':[],'3':[],'4':[],'5':[]}
+    
+    
     
     img_loader = tqdm(img_path_list)
     for img_path in img_loader:
@@ -80,13 +90,49 @@ def main():
 
         print_res = "predict_class: {}   prob: {:.3}    truth_class: {}".format(class_indict[str(predict_cla)],
                                                     predict[predict_cla].numpy(), truth_class)
-        print(print_res)
+        pred['0'].append(predict[0].numpy())
+        pred['1'].append(predict[1].numpy())
+        pred['2'].append(predict[2].numpy())
+        pred['3'].append(predict[3].numpy())
+        pred['4'].append(predict[4].numpy())
+        pred['5'].append(predict[5].numpy())
+            
+        if truth_class == '123':
+            target['0'].append(1)
+        else:
+            target['0'].append(0)
+        if truth_class == '1234':
+            target['1'].append(1)
+        else:
+            target['1'].append(0)
+        if truth_class == '4':
+            target['2'].append(1)
+        else:
+            target['2'].append(0)
+        if truth_class == '5678':
+            target['3'].append(1)
+        else:
+            target['3'].append(0)
+        if truth_class == '58':
+            target['4'].append(1)
+        else:
+            target['4'].append(0)
+        if truth_class == '67':
+            target['5'].append(1)
+        else:
+            target['5'].append(0)
+            
+        
+        # print(print_res)
         if class_indict[str(predict_cla)] == truth_class:
             right_num += 1
     # for i in range(len(predict)):
     #     print("class: {:10}   prob: {:.3}".format(class_indict[str(i)],
     #                                               predict[i].numpy()))
+    mAP = cal_mAP(target, pred)
+
     print('[Accuracy]: {}'.format(right_num/all_num))
+    print('[mAP]: {}'.format(mAP))
 
 
 if __name__ == '__main__':
